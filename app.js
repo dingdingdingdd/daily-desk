@@ -1,8 +1,14 @@
 /**
  * 案头：按日期记录待办，数据只写在 localStorage。
  * 带截止日期的任务从记下那天起每天出现，直到完成。
+ * 每条待办属于工作、生活或成长之一。
  */
 const STORAGE_KEY = "daily-desk.v1";
+const KINDS = [
+  { id: "work", label: "工作" },
+  { id: "life", label: "生活" },
+  { id: "growth", label: "成长" },
+];
 const WEEKDAYS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
 const WEEK_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 
@@ -10,6 +16,8 @@ const state = load();
 let selected = startOfDay(new Date());
 let doneOpen = false;
 let editingId = null;
+let kind = "work";
+let filter = "all";
 
 const els = {
   kicker: document.querySelector("#date-kicker"),
@@ -105,6 +113,14 @@ function findTask(id) {
   return null;
 }
 
+function kindOf(task) {
+  return KINDS.some((item) => item.id === task.kind) ? task.kind : "work";
+}
+
+function kindLabel(id) {
+  return KINDS.find((item) => item.id === id)?.label || "工作";
+}
+
 function dueMeta(task, day) {
   if (!task.due) return "";
   const due = parseKey(task.due);
@@ -156,9 +172,11 @@ function escapeHtml(value) {
 
 function render() {
   const today = startOfDay(new Date());
-  const tasks = visibleTasks(selected);
+  const all = visibleTasks(selected);
+  const tasks = all.filter((task) => filter === "all" || kindOf(task) === filter);
   const open = tasks.filter((task) => !task.done).sort(compareOpen);
   const done = tasks.filter((task) => task.done);
+  const openAll = all.filter((task) => !task.done);
 
   els.kicker.textContent = relativeLabel(selected);
   els.num.textContent = `${selected.getFullYear()}年${selected.getMonth() + 1}月${selected.getDate()}日`;
@@ -169,7 +187,7 @@ function render() {
 
   renderWeek(today);
   renderIntent();
-  renderCarry(today, open);
+  renderCarry(today, openAll);
   renderStats(open, done);
   els.openList.innerHTML = open.map(renderTask).join("");
   els.doneList.innerHTML = done.map(renderTask).join("");
@@ -178,6 +196,8 @@ function render() {
   els.doneToggle.setAttribute("aria-expanded", doneOpen ? "true" : "false");
   els.doneList.hidden = !doneOpen;
   els.empty.hidden = tasks.length !== 0;
+  els.empty.textContent = all.length && !tasks.length ? "这一类还没有待办。" : "这一天还没有待办。";
+  renderChoices();
   els.countLine.textContent = "待办只保存在这台浏览器";
   els.due.min = keyOf(selected);
   if (els.due.value && els.due.value < els.due.min) els.due.value = "";
@@ -224,12 +244,24 @@ function renderCarry(today, openToday) {
   els.carry.innerHTML = `<span>昨天还有 ${pending.length} 件事没做完</span><button type="button" data-action="carry">带入今天</button>`;
 }
 
+function renderChoices() {
+  document.querySelectorAll("[data-action='set-kind']").forEach((button) => {
+    const on = button.dataset.kind === kind;
+    button.classList.toggle("is-on", on);
+    button.setAttribute("aria-checked", on ? "true" : "false");
+  });
+  document.querySelectorAll("[data-action='filter']").forEach((button) => {
+    button.setAttribute("aria-selected", button.dataset.kind === filter ? "true" : "false");
+  });
+}
+
 function renderStats(open, done) {
   if (open.length + done.length === 0) {
-    els.stats.textContent = "暂无待办";
+    els.stats.textContent = filter === "all" ? "暂无待办" : `${kindLabel(filter)}暂无`;
     return;
   }
-  els.stats.textContent = `${open.length} 件未完成 · ${done.length} 件已完成`;
+  const prefix = filter === "all" ? "" : `${kindLabel(filter)} · `;
+  els.stats.textContent = `${prefix}${open.length} 件未完成 · ${done.length} 件已完成`;
 }
 
 function compareOpen(a, b) {
@@ -252,11 +284,15 @@ function renderTask(task) {
   const due = meta
     ? `<span class="due-meta ${meta.kind}">${escapeHtml(meta.text)}</span>`
     : "";
+  const taskKind = kindOf(task);
   return `<li class="task${task.done ? " is-done" : ""}">
     <button type="button" class="check" data-action="toggle" data-id="${task.id}" aria-label="${task.done ? "标为未完成" : "标为完成"}" aria-pressed="${task.done}">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.2 6.3 11.5 13 4.5" /></svg>
     </button>
-    <div class="task-main">${title}</div>
+    <div class="task-main">
+      <button type="button" class="kind-tag kind-${taskKind}" data-action="cycle-kind" data-id="${task.id}" aria-label="类型：${kindLabel(taskKind)}，点击切换">${kindLabel(taskKind)}</button>
+      ${title}
+    </div>
     ${due}
     <button type="button" class="ghost" data-action="delete" data-id="${task.id}">删除</button>
   </li>`;
@@ -276,6 +312,15 @@ function onClick(event) {
   if (action === "toggle") toggleTask(button.dataset.id);
   if (action === "delete") deleteTask(button.dataset.id);
   if (action === "edit") beginEdit(button.dataset.id);
+  if (action === "set-kind") {
+    kind = button.dataset.kind;
+    renderChoices();
+  }
+  if (action === "filter") {
+    filter = button.dataset.kind;
+    render();
+  }
+  if (action === "cycle-kind") cycleKind(button.dataset.id);
   if (action === "toggle-done") {
     doneOpen = !doneOpen;
     render();
@@ -294,6 +339,7 @@ function onSubmit(event) {
     title,
     done: false,
     createdAt: Date.now(),
+    kind,
   };
   if (due) {
     state.spans.unshift({ ...task, start, due });
@@ -392,8 +438,19 @@ function carryYesterday() {
       title: task.title,
       done: false,
       createdAt: Date.now(),
+      kind: kindOf(task),
     });
   });
+  save();
+  render();
+}
+
+function cycleKind(id) {
+  const task = findTask(id);
+  if (!task) return;
+  const order = KINDS.map((item) => item.id);
+  const next = order[(order.indexOf(kindOf(task)) + 1) % order.length];
+  task.kind = next;
   save();
   render();
 }

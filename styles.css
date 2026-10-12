@@ -204,6 +204,51 @@ textarea {
 
 textarea:focus { border-color: var(--accent); background: #fff; }
 
+.kind-switch {
+  display: inline-flex;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.kind-btn {
+  border: 0;
+  background: #fff;
+  color: var(--muted);
+  padding: 6px 16px;
+  font-size: 13px;
+}
+
+.kind-btn + .kind-btn { border-left: 1px solid var(--line); }
+
+.kind-btn.is-on {
+  background: var(--accent);
+  color: #fff;
+}
+
+.filters {
+  display: flex;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.filters button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.filters button[aria-selected="true"] {
+  background: #f3f5f8;
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .todos { margin-top: 24px; }
 
 .todos-head {
@@ -318,7 +363,27 @@ textarea:focus { border-color: var(--accent); background: #fff; }
   border-bottom: 1px solid var(--line);
 }
 
-.task-main { min-width: 0; }
+.task-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kind-tag {
+  flex: none;
+  border: 0;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.kind-work { color: #1f4e79; background: #e8f0f7; }
+
+.kind-life { color: #2f5d45; background: #e7f2ea; }
+
+.kind-growth { color: #6b4e16; background: #f8f1e3; }
 
 .due-meta {
   font-size: 12px;
@@ -467,6 +532,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   .composer #draft { grid-column: 1 / -1; }
 
   .due-field { border-left: 0; padding-left: 0; }
+
+  .kind-switch { display: flex; }
+
+  .kind-btn { flex: 1; }
 
   .ghost { color: var(--faint); }
 }
