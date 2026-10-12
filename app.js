@@ -1,6 +1,6 @@
 /**
  * 案头：按日期记录待办，数据只写在 localStorage。
- * 不请求服务器，也不做账号同步。
+ * 带截止日期的任务从记下那天起每天出现，直到完成。
  */
 const STORAGE_KEY = "daily-desk.v1";
 const WEEKDAYS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
@@ -21,6 +21,7 @@ const els = {
   intent: document.querySelector("#intent"),
   composer: document.querySelector("#composer"),
   draft: document.querySelector("#draft"),
+  due: document.querySelector("#due"),
   stats: document.querySelector("#stats"),
   carry: document.querySelector("#carry"),
   openList: document.querySelector("#open-list"),
@@ -41,12 +42,13 @@ render();
 function load() {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!raw || typeof raw !== "object") return { days: {}, intents: {} };
+    if (!raw || typeof raw !== "object") return { days: {}, intents: {}, spans: [] };
     raw.days = raw.days && typeof raw.days === "object" ? raw.days : {};
     raw.intents = raw.intents && typeof raw.intents === "object" ? raw.intents : {};
+    raw.spans = Array.isArray(raw.spans) ? raw.spans : [];
     return raw;
   } catch {
-    return { days: {}, intents: {} };
+    return { days: {}, intents: {}, spans: [] };
   }
 }
 
@@ -77,6 +79,43 @@ function tasksOf(date) {
   const key = keyOf(date);
   if (!Array.isArray(state.days[key])) state.days[key] = [];
   return state.days[key];
+}
+
+function showsOn(task, key) {
+  if (!task.start || !task.due || key < task.start) return false;
+  if (task.done) return key <= task.due;
+  return true;
+}
+
+function visibleTasks(date) {
+  const key = keyOf(date);
+  const daily = Array.isArray(state.days[key]) ? state.days[key] : [];
+  const spanning = state.spans.filter((task) => showsOn(task, key));
+  return [...spanning, ...daily];
+}
+
+function findTask(id) {
+  const span = state.spans.find((task) => task.id === id);
+  if (span) return span;
+  for (const list of Object.values(state.days)) {
+    if (!Array.isArray(list)) continue;
+    const hit = list.find((task) => task.id === id);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function dueMeta(task, day) {
+  if (!task.due) return "";
+  const due = parseKey(task.due);
+  const diff = Math.round((due - startOfDay(day)) / 86400000);
+  const when = `${due.getMonth() + 1}月${due.getDate()}日`;
+  if (task.done) return { text: `${when}截止`, kind: "" };
+  if (diff > 1) return { text: `还有 ${diff} 天 · ${when}截止`, kind: "" };
+  if (diff === 1) return { text: `明天截止 · ${when}`, kind: "" };
+  if (diff === 0) return { text: "今天截止", kind: "is-today" };
+  const late = -diff;
+  return { text: late === 1 ? "昨天已截止" : `已过期 ${late} 天`, kind: "is-over" };
 }
 
 function sameDay(a, b) {
@@ -117,8 +156,8 @@ function escapeHtml(value) {
 
 function render() {
   const today = startOfDay(new Date());
-  const tasks = tasksOf(selected);
-  const open = tasks.filter((task) => !task.done);
+  const tasks = visibleTasks(selected);
+  const open = tasks.filter((task) => !task.done).sort(compareOpen);
   const done = tasks.filter((task) => task.done);
 
   els.kicker.textContent = relativeLabel(selected);
@@ -142,6 +181,8 @@ function render() {
   els.countLine.textContent = tasks.length
     ? `这一天共 ${tasks.length} 件，完成 ${done.length} 件`
     : "从一件小事开始";
+  els.due.min = keyOf(selected);
+  if (els.due.value && els.due.value < els.due.min) els.due.value = "";
 
   const editing = document.querySelector(".title-edit");
   if (editing) {
@@ -193,15 +234,31 @@ function renderStats(open, done) {
   els.stats.textContent = `${open.length} 件未完成 · ${done.length} 件已完成`;
 }
 
+function compareOpen(a, b) {
+  const rank = (task) => {
+    if (!task.due) return 2;
+    if (task.due < keyOf(selected)) return 0;
+    return 1;
+  };
+  const byRank = rank(a) - rank(b);
+  if (byRank) return byRank;
+  if (a.due && b.due && a.due !== b.due) return a.due < b.due ? -1 : 1;
+  return (b.createdAt || 0) - (a.createdAt || 0);
+}
+
 function renderTask(task) {
   const title = editingId === task.id
     ? `<input class="title-edit" data-id="${task.id}" value="${escapeHtml(task.title)}" maxlength="120" />`
     : `<button type="button" class="title-btn" data-action="edit" data-id="${task.id}">${escapeHtml(task.title)}</button>`;
+  const meta = dueMeta(task, selected);
+  const due = meta
+    ? `<p class="due-meta ${meta.kind}">${escapeHtml(meta.text)}</p>`
+    : "";
   return `<li class="task${task.done ? " is-done" : ""}">
     <button type="button" class="check" data-action="toggle" data-id="${task.id}" aria-label="${task.done ? "标为未完成" : "标为完成"}" aria-pressed="${task.done}">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.2 6.3 11.5 13 4.5" /></svg>
     </button>
-    ${title}
+    <div class="task-main">${title}${due}</div>
     <button type="button" class="ghost" data-action="delete" data-id="${task.id}">删除</button>
   </li>`;
 }
@@ -231,13 +288,21 @@ function onSubmit(event) {
   event.preventDefault();
   const title = els.draft.value.trim();
   if (!title) return;
-  tasksOf(selected).unshift({
+  const start = keyOf(selected);
+  const due = els.due.value && els.due.value >= start ? els.due.value : "";
+  const task = {
     id: crypto.randomUUID(),
     title,
     done: false,
     createdAt: Date.now(),
-  });
+  };
+  if (due) {
+    state.spans.unshift({ ...task, start, due });
+  } else {
+    tasksOf(selected).unshift(task);
+  }
   els.draft.value = "";
+  els.due.value = "";
   doneOpen = false;
   save();
   render();
@@ -262,7 +327,7 @@ function selectDate(date) {
 }
 
 function toggleTask(id) {
-  const task = tasksOf(selected).find((item) => item.id === id);
+  const task = findTask(id);
   if (!task) return;
   task.done = !task.done;
   if (task.done) doneOpen = true;
@@ -271,8 +336,15 @@ function toggleTask(id) {
 }
 
 function deleteTask(id) {
-  const key = keyOf(selected);
-  state.days[key] = tasksOf(selected).filter((item) => item.id !== id);
+  const spanIndex = state.spans.findIndex((task) => task.id === id);
+  if (spanIndex >= 0) {
+    state.spans.splice(spanIndex, 1);
+  } else {
+    for (const key of Object.keys(state.days)) {
+      if (!Array.isArray(state.days[key])) continue;
+      state.days[key] = state.days[key].filter((task) => task.id !== id);
+    }
+  }
   if (editingId === id) editingId = null;
   save();
   render();
@@ -301,7 +373,7 @@ function beginEdit(id) {
 function commitEdit() {
   if (!editingId) return;
   const input = document.querySelector(`.title-edit[data-id="${editingId}"]`);
-  const task = tasksOf(selected).find((item) => item.id === editingId);
+  const task = findTask(editingId);
   editingId = null;
   if (task && input) {
     const title = input.value.trim();

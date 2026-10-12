@@ -48,6 +48,10 @@
 
         <form class="composer" id="composer">
           <input id="draft" type="text" maxlength="120" placeholder="写下要做的事，回车记下" autocomplete="off" />
+          <label class="due-field">
+            截止
+            <input id="due" type="date" aria-label="截止日期，留空则只出现在这一天" />
+          </label>
           <button type="submit">记下</button>
         </form>
 
