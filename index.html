@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#e7e1d6" />
+    <title>案头 · 每日工作台</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%239c3b2e'/%3E%3Cpath d='M8 17.2 13 22 24 10' fill='none' stroke='%23f6f1e8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="sheet">
+      <header class="mast">
+        <div class="mast-brand">
+          <p class="eyebrow">案头</p>
+          <p class="brand-note">个人工作台 · 待办只留在这台浏览器</p>
+        </div>
+        <button type="button" class="today-link" data-action="today" hidden>回到今天</button>
+      </header>
+
+      <section class="date-block" aria-label="日期">
+        <div class="date-nav">
+          <button type="button" class="icon-btn" data-action="prev-day" aria-label="前一天">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" /></svg>
+          </button>
+          <div class="date-readout">
+            <p class="date-kicker" id="date-kicker"></p>
+            <h1 class="date-num" id="date-num"></h1>
+            <p class="date-sub" id="date-sub"></p>
+          </div>
+          <button type="button" class="icon-btn" data-action="next-day" aria-label="后一天">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" /></svg>
+          </button>
+        </div>
+        <div class="week" id="week" role="tablist" aria-label="本周"></div>
+      </section>
+
+      <section class="intent">
+        <label class="field-label" id="intent-label" for="intent">今天想先做成的事</label>
+        <textarea id="intent" rows="1" maxlength="80" placeholder="写下一件最重要的事"></textarea>
+      </section>
+
+      <section class="todos" aria-label="待办">
+        <div class="todos-head">
+          <h2>待办</h2>
+          <p class="stats" id="stats"></p>
+        </div>
+
+        <form class="composer" id="composer">
+          <input id="draft" type="text" maxlength="120" placeholder="写下要做的事，回车记下" autocomplete="off" />
+          <button type="submit">记下</button>
+        </form>
+
+        <div id="carry" class="carry" hidden></div>
+        <ul class="list" id="open-list"></ul>
+        <div id="done-wrap" hidden>
+          <button type="button" class="done-toggle" data-action="toggle-done" aria-expanded="false">
+            <span id="done-label">已完成</span>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" /></svg>
+          </button>
+          <ul class="list done-list" id="done-list" hidden></ul>
+        </div>
+        <p class="empty" id="empty" hidden>这一天还是空白的。先记下一件具体的事。</p>
+      </section>
+
+      <footer class="colophon">
+        <span id="count-line"></span>
+      </footer>
+    </div>
+    <script src="./app.js"></script>
+  </body>
+</html>
