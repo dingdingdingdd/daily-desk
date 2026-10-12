@@ -110,9 +110,9 @@ function dueMeta(task, day) {
   const due = parseKey(task.due);
   const diff = Math.round((due - startOfDay(day)) / 86400000);
   const when = `${due.getMonth() + 1}月${due.getDate()}日`;
-  if (task.done) return { text: `${when}截止`, kind: "" };
-  if (diff > 1) return { text: `还有 ${diff} 天 · ${when}截止`, kind: "" };
-  if (diff === 1) return { text: `明天截止 · ${when}`, kind: "" };
+  if (task.done) return { text: `截止 ${when}`, kind: "" };
+  if (diff > 1) return { text: `截止 ${when}`, kind: "" };
+  if (diff === 1) return { text: "明天截止", kind: "" };
   if (diff === 0) return { text: "今天截止", kind: "is-today" };
   const late = -diff;
   return { text: late === 1 ? "昨天已截止" : `已过期 ${late} 天`, kind: "is-over" };
@@ -129,10 +129,10 @@ function weekStart(date) {
 
 function intentCopy(date, today) {
   const diff = Math.round((date - today) / 86400000);
-  if (diff === 0) return "今天想先做成的事";
-  if (diff === -1) return "昨天想先做成的事";
-  if (diff === 1) return "明天想先做成的事";
-  return "这一天想先做成的事";
+  if (diff === 0) return "今日重点";
+  if (diff === -1) return "昨日重点";
+  if (diff === 1) return "明日重点";
+  return "当日重点";
 }
 
 function relativeLabel(date) {
@@ -161,8 +161,8 @@ function render() {
   const done = tasks.filter((task) => task.done);
 
   els.kicker.textContent = relativeLabel(selected);
-  els.num.textContent = String(selected.getDate());
-  els.sub.textContent = `${selected.getFullYear()}年${selected.getMonth() + 1}月 · ${WEEKDAYS[selected.getDay()]}`;
+  els.num.textContent = `${selected.getFullYear()}年${selected.getMonth() + 1}月${selected.getDate()}日`;
+  els.sub.textContent = WEEKDAYS[selected.getDay()];
   els.today.hidden = sameDay(selected, today);
   els.intentLabel.textContent = intentCopy(selected, today);
   document.title = `${relativeLabel(selected)} ${selected.getMonth() + 1}月${selected.getDate()}日 · 案头`;
@@ -178,9 +178,7 @@ function render() {
   els.doneToggle.setAttribute("aria-expanded", doneOpen ? "true" : "false");
   els.doneList.hidden = !doneOpen;
   els.empty.hidden = tasks.length !== 0;
-  els.countLine.textContent = tasks.length
-    ? `这一天共 ${tasks.length} 件，完成 ${done.length} 件`
-    : "从一件小事开始";
+  els.countLine.textContent = "待办只保存在这台浏览器";
   els.due.min = keyOf(selected);
   if (els.due.value && els.due.value < els.due.min) els.due.value = "";
 
@@ -228,7 +226,7 @@ function renderCarry(today, openToday) {
 
 function renderStats(open, done) {
   if (open.length + done.length === 0) {
-    els.stats.textContent = "还没有记下事情";
+    els.stats.textContent = "暂无待办";
     return;
   }
   els.stats.textContent = `${open.length} 件未完成 · ${done.length} 件已完成`;
@@ -252,13 +250,14 @@ function renderTask(task) {
     : `<button type="button" class="title-btn" data-action="edit" data-id="${task.id}">${escapeHtml(task.title)}</button>`;
   const meta = dueMeta(task, selected);
   const due = meta
-    ? `<p class="due-meta ${meta.kind}">${escapeHtml(meta.text)}</p>`
+    ? `<span class="due-meta ${meta.kind}">${escapeHtml(meta.text)}</span>`
     : "";
   return `<li class="task${task.done ? " is-done" : ""}">
     <button type="button" class="check" data-action="toggle" data-id="${task.id}" aria-label="${task.done ? "标为未完成" : "标为完成"}" aria-pressed="${task.done}">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.2 6.3 11.5 13 4.5" /></svg>
     </button>
-    <div class="task-main">${title}${due}</div>
+    <div class="task-main">${title}</div>
+    ${due}
     <button type="button" class="ghost" data-action="delete" data-id="${task.id}">删除</button>
   </li>`;
 }
