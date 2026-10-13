@@ -217,7 +217,6 @@ textarea:focus {
 .todos-head {
   display: flex;
   align-items: center;
-  gap: 16px;
   margin-bottom: 14px;
   height: 32px;
 }
@@ -230,12 +229,8 @@ textarea:focus {
   flex: none;
 }
 
-.stats {
-  margin: 0 0 0 auto;
-  color: var(--faint);
-  font-size: 13px;
-  line-height: 32px;
-  flex: none;
+.filters {
+  margin: 0 auto;
 }
 
 /* ── 视图筛选 ── */

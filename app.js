@@ -37,7 +37,6 @@ const els = {
   calPop: document.querySelector("#calendar-pop"),
   calTitle: document.querySelector("#cal-title"),
   calGrid: document.querySelector("#cal-grid"),
-  stats: document.querySelector("#stats"),
   carry: document.querySelector("#carry"),
   openList: document.querySelector("#open-list"),
   doneWrap: document.querySelector("#done-wrap"),
@@ -196,7 +195,6 @@ function render() {
   renderWeek(today);
   renderIntent();
   renderCarry(today, openAll);
-  renderStats(open, done);
   els.openList.innerHTML = open.map(renderTask).join("");
   els.doneList.innerHTML = done.map(renderTask).join("");
   els.doneWrap.hidden = done.length === 0;
@@ -257,15 +255,6 @@ function renderChoices() {
   document.querySelectorAll("[data-action='filter']").forEach((button) => {
     button.setAttribute("aria-selected", button.dataset.kind === filter ? "true" : "false");
   });
-}
-
-function renderStats(open, done) {
-  if (open.length + done.length === 0) {
-    els.stats.textContent = filter === "all" ? "暂无待办" : `${kindLabel(filter)}暂无`;
-    return;
-  }
-  const prefix = filter === "all" ? "" : `${kindLabel(filter)} · `;
-  els.stats.textContent = `${prefix}${open.length} 件未完成 · ${done.length} 件已完成`;
 }
 
 function compareOpen(a, b) {
