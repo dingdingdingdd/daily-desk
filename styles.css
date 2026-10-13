@@ -314,14 +314,17 @@ textarea:focus {
 #due-display {
   color: var(--ink-2);
   font-size: 13px;
-  min-width: 60px;
+  width: 64px;
+  text-align: center;
 }
 
 .due-icon {
-  width: 15px;
+  width: 64px;
   height: 15px;
   color: var(--faint);
   transition: color 0.15s;
+  display: grid;
+  place-items: center;
 }
 
 .due-field:hover .due-icon {
