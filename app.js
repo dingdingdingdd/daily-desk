@@ -44,23 +44,48 @@ const els = {
   doneList: document.querySelector("#done-list"),
   empty: document.querySelector("#empty"),
   countLine: document.querySelector("#count-line"),
+  ideasToggle: document.querySelector('[data-action="toggle-ideas"]'),
+  ideasCount: document.querySelector("#ideas-count"),
+  ideasBody: document.querySelector("#ideas-body"),
+  ideaForm: document.querySelector("#idea-form"),
+  ideaInput: document.querySelector("#idea-input"),
+  ideaList: document.querySelector("#idea-list"),
+  notebookToggle: document.querySelector('[data-action="toggle-notebook"]'),
+  notebookBody: document.querySelector("#notebook-body"),
+  notebook: document.querySelector("#notebook"),
 };
 
 document.body.addEventListener("click", onClick);
 els.composer.addEventListener("submit", onSubmit);
 els.dueField.addEventListener("click", toggleCalendar);
+els.ideaForm.addEventListener("submit", onIdea);
+els.notebook.addEventListener("input", onNotebook);
 
 render();
 
 function load() {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!raw || typeof raw !== "object") return { days: {}, spans: [] };
+    if (!raw || typeof raw !== "object") return { days: {}, spans: [], ideas: [], notebook: "", ui: {} };
     raw.days = raw.days && typeof raw.days === "object" ? raw.days : {};
     raw.spans = Array.isArray(raw.spans) ? raw.spans : [];
+    raw.ideas = Array.isArray(raw.ideas) ? raw.ideas : [];
+    raw.notebook = typeof raw.notebook === "string" ? raw.notebook : "";
+    raw.ui = raw.ui && typeof raw.ui === "object" ? raw.ui : {};
+    // 一次性迁移：给没有 order 的任务补排序值，沿用旧的“跨天在前、当天在后”的显示顺序
+    const missing = raw.spans.some((t) => typeof t.order !== "number")
+      || Object.values(raw.days).some((list) => Array.isArray(list) && list.some((t) => typeof t.order !== "number"));
+    if (missing) {
+      let order = 0;
+      for (const task of raw.spans) if (typeof task.order !== "number") task.order = order++;
+      for (const key of Object.keys(raw.days)) {
+        if (!Array.isArray(raw.days[key])) continue;
+        for (const task of raw.days[key]) if (typeof task.order !== "number") task.order = order++;
+      }
+    }
     return raw;
   } catch {
-    return { days: {}, spans: [] };
+    return { days: {}, spans: [], ideas: [], notebook: "", ui: {} };
   }
 }
 
@@ -103,7 +128,8 @@ function visibleTasks(date) {
   const key = keyOf(date);
   const daily = Array.isArray(state.days[key]) ? state.days[key] : [];
   const spanning = state.spans.filter((task) => showsOn(task, key));
-  return [...spanning, ...daily];
+  // 统一按 order 排序：跨天任务与当天任务混排，顺序完全由用户调整
+  return [...spanning, ...daily].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
 function findTask(id) {
@@ -196,6 +222,7 @@ function render() {
   els.due.min = keyOf(selected);
   if (els.due.value && els.due.value < els.due.min) els.due.value = "";
   updateDueDisplay();
+  renderSideSections();
 
   const editing = document.querySelector(".title-edit");
   if (editing) {
@@ -258,39 +285,52 @@ function currentOpenTasks() {
   return tasks.filter((task) => !task.done);
 }
 
-// 判断每条未完成待办能否上移/下移：
-// 只与可见列表中相邻、且同属一个存储列表（跨天任务组 / 当日任务组）的项交换，
-// 与拖拽的“只允许同列表内移动”规则保持一致，避免破坏跨天任务的语义。
+// 判断每条未完成待办能否上移/下移：只跟可见列表中相邻的项交换，无其他限制
 function moveFlags(open) {
-  const slots = new Map(open.map((task) => [task.id, findTaskArray(task.id)]));
   const flags = new Map();
   open.forEach((task, i) => {
-    const arr = slots.get(task.id)?.arr;
-    const prev = open[i - 1];
-    const next = open[i + 1];
-    flags.set(task.id, {
-      up: !!arr && !!prev && slots.get(prev.id)?.arr === arr,
-      down: !!arr && !!next && slots.get(next.id)?.arr === arr,
-    });
+    flags.set(task.id, { up: i > 0, down: i < open.length - 1 });
   });
   return flags;
 }
 
-// 与相邻可见项交换存储位置，dir 为 -1（上移）或 1（下移）
+// 与相邻可见项交换 order（排序值），dir 为 -1（上移）或 1（下移）
 function moveAdjacent(taskId, dir) {
   const open = currentOpenTasks();
   const i = open.findIndex((task) => task.id === taskId);
   if (i < 0) return;
   const peer = open[i + dir];
   if (!peer) return;
-  const a = findTaskArray(taskId);
-  const b = findTaskArray(peer.id);
-  if (!a || !b || a.arr !== b.arr) return;
-  const targetIdx = a.arr.findIndex((task) => task.id === peer.id);
-  const [moved] = a.arr.splice(a.idx, 1);
-  a.arr.splice(targetIdx, 0, moved);
+  const a = findTask(taskId);
+  const b = findTask(peer.id);
+  if (!a || !b) return;
+  [a.order, b.order] = [b.order, a.order];
   save();
   render();
+}
+
+// 新任务排序值：加在顶部用最小 order，追加到底部用最大 order
+function orderRange() {
+  let min = 0, max = 0, has = false;
+  const walk = (task) => {
+    has = true;
+    min = Math.min(min, task.order);
+    max = Math.max(max, task.order);
+  };
+  state.spans.forEach(walk);
+  for (const key of Object.keys(state.days)) {
+    if (!Array.isArray(state.days[key])) continue;
+    state.days[key].forEach(walk);
+  }
+  return { min, max, has };
+}
+function nextTopOrder() {
+  const { min, has } = orderRange();
+  return (has ? min : 0) - 1;
+}
+function nextBottomOrder() {
+  const { max, has } = orderRange();
+  return (has ? max : 0) + 1;
 }
 
 function renderTask(task, flags) {
@@ -315,7 +355,7 @@ function renderTask(task, flags) {
         </button>
       </span>`
     : "";
-  return `<li class="task${task.done ? " is-done" : ""}" draggable="true" data-task-id="${task.id}">
+  return `<li class="task${task.done ? " is-done" : ""}" data-task-id="${task.id}">
     <button type="button" class="check" data-action="toggle" data-id="${task.id}" aria-label="${task.done ? "标为未完成" : "标为完成"}" aria-pressed="${task.done}">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.2 6.3 11.5 13 4.5" /></svg>
     </button>
@@ -356,6 +396,17 @@ function onClick(event) {
     doneOpen = !doneOpen;
     render();
   }
+  if (action === "toggle-ideas") {
+    state.ui.ideasOpen = !state.ui.ideasOpen;
+    save();
+    render();
+  }
+  if (action === "toggle-notebook") {
+    state.ui.notebookOpen = !state.ui.notebookOpen;
+    save();
+    render();
+  }
+  if (action === "delete-idea") deleteIdea(button.dataset.id);
   if (action === "carry") carryYesterday();
 }
 
@@ -366,17 +417,19 @@ function onSubmit(event) {
   const start = keyOf(selected);
   const due = els.due.value && els.due.value >= start ? els.due.value : "";
   const newKind = filter !== "all" ? filter : lastKind;
+  const order = nextTopOrder(); // 新待办排在最上面
   const task = {
     id: crypto.randomUUID(),
     title,
     done: false,
     createdAt: Date.now(),
     kind: newKind,
+    order,
   };
   if (due) {
-    state.spans.unshift({ ...task, start, due });
+    state.spans.push({ ...task, start, due });
   } else {
-    tasksOf(selected).unshift(task);
+    tasksOf(selected).push(task);
   }
   els.draft.value = "";
   els.due.value = "";
@@ -462,6 +515,7 @@ function carryYesterday() {
       done: false,
       createdAt: Date.now(),
       kind: kindOf(task),
+      order: nextBottomOrder(), // 带入的待办排在列表底部
     });
   });
   save();
@@ -478,7 +532,7 @@ function cycleKind(id) {
   render();
 }
 
-// 给待办设置截止时间：原本没有截止的当天任务转为跨天任务（从当前查看的日期开始，每天出现直到完成）
+// 给待办设置截止时间：原本没有截止的当天任务转为跨天任务（从当前查看的日期开始，每天出现直到完成），列表位置不变
 function applyDueToTask(taskId, key) {
   const task = findTask(taskId);
   if (!task) return;
@@ -490,14 +544,14 @@ function applyDueToTask(taskId, key) {
       state.days[dayKey] = state.days[dayKey].filter((item) => item.id !== taskId);
     }
     task.start = keyOf(selected);
-    state.spans.unshift(task);
+    state.spans.push(task);
   }
   task.due = key;
   save();
   render();
 }
 
-// 清除待办的截止时间：跨天任务转为当天任务（放进当前查看的日期），当天任务直接去掉截止
+// 清除待办的截止时间：跨天任务转为当天任务（放进当前查看的日期），列表位置不变
 function clearTaskDue(taskId) {
   const task = findTask(taskId);
   if (!task) return;
@@ -505,7 +559,7 @@ function clearTaskDue(taskId) {
     state.spans = state.spans.filter((item) => item.id !== taskId);
     delete task.start;
     delete task.due;
-    tasksOf(selected).unshift(task);
+    tasksOf(selected).push(task);
   } else {
     delete task.due;
   }
@@ -661,67 +715,55 @@ document.addEventListener("click", (event) => {
   }
 });
 
-/* ── 拖拽排序 ── */
-let dragId = null;
-
-function findTaskArray(taskId) {
-  const spanIdx = state.spans.findIndex((t) => t.id === taskId);
-  if (spanIdx >= 0) return { arr: state.spans, idx: spanIdx };
-  for (const key of Object.keys(state.days)) {
-    if (!Array.isArray(state.days[key])) continue;
-    const idx = state.days[key].findIndex((t) => t.id === taskId);
-    if (idx >= 0) return { arr: state.days[key], idx };
+/* ── 金点子 ── */
+function renderSideSections() {
+  const ui = state.ui;
+  els.ideasCount.hidden = state.ideas.length === 0;
+  els.ideasCount.textContent = state.ideas.length;
+  els.ideasBody.hidden = !ui.ideasOpen;
+  els.notebookBody.hidden = !ui.notebookOpen;
+  els.ideasToggle.setAttribute("aria-expanded", ui.ideasOpen ? "true" : "false");
+  els.notebookToggle.setAttribute("aria-expanded", ui.notebookOpen ? "true" : "false");
+  els.ideaList.innerHTML = state.ideas.map(renderIdea).join("");
+  if (document.activeElement !== els.notebook) {
+    els.notebook.value = state.notebook;
+    autosizeNotebook();
   }
-  return null;
 }
 
-function moveTask(taskId, targetTaskId, position) {
-  const source = findTaskArray(taskId);
-  const target = findTaskArray(targetTaskId);
-  if (!source || !target || source.arr !== target.arr) return; // 只允许同列表内拖动
+function renderIdea(idea) {
+  return `<li class="idea">
+    <span class="idea-text">${escapeHtml(idea.text)}</span>
+    <button type="button" class="ghost" data-action="delete-idea" data-id="${idea.id}">删除</button>
+  </li>`;
+}
 
-  const [moved] = source.arr.splice(source.idx, 1);
-  let insertIdx = target.arr.findIndex((t) => t.id === targetTaskId);
-  if (position === "after") insertIdx += 1;
-  // 删除原位置后索引可能偏移，重新算
-  if (source.idx < insertIdx) insertIdx -= 1;
-  target.arr.splice(insertIdx, 0, moved);
+function onIdea(event) {
+  event.preventDefault();
+  const text = els.ideaInput.value.trim();
+  if (!text) return;
+  state.ideas.unshift({ id: crypto.randomUUID(), text, createdAt: Date.now() });
+  els.ideaInput.value = "";
+  save();
+  render();
+  els.ideaInput.focus();
+}
+
+function deleteIdea(id) {
+  state.ideas = state.ideas.filter((idea) => idea.id !== id);
   save();
   render();
 }
 
-els.openList.addEventListener("dragstart", (event) => {
-  const li = event.target.closest("li.task");
-  if (!li) return;
-  dragId = li.dataset.taskId;
-  li.classList.add("dragging");
-  event.dataTransfer.effectAllowed = "move";
-});
+/* ── 笔记本 ── */
+function onNotebook() {
+  state.notebook = els.notebook.value;
+  autosizeNotebook();
+  save();
+}
 
-els.openList.addEventListener("dragover", (event) => {
-  event.preventDefault();
-  const li = event.target.closest("li.task");
-  if (!li || li.dataset.taskId === dragId) return;
-  const rect = li.getBoundingClientRect();
-  const before = event.clientY < rect.top + rect.height / 2;
-  // 移除旧的插入线
-  els.openList.querySelectorAll(".drop-indicator").forEach((el) => el.remove());
-  const indicator = document.createElement("span");
-  indicator.className = "drop-indicator";
-  if (before) li.before(indicator);
-  else li.after(indicator);
-});
+function autosizeNotebook() {
+  els.notebook.style.height = "auto";
+  els.notebook.style.height = `${els.notebook.scrollHeight}px`;
+}
 
-els.openList.addEventListener("drop", (event) => {
-  event.preventDefault();
-  const li = event.target.closest("li.task");
-  if (!li || !dragId || li.dataset.taskId === dragId) return;
-  const rect = li.getBoundingClientRect();
-  const before = event.clientY < rect.top + rect.height / 2;
-  moveTask(dragId, li.dataset.taskId, before ? "before" : "after");
-});
-
-els.openList.addEventListener("dragend", () => {
-  dragId = null;
-  els.openList.querySelectorAll(".dragging, .drop-indicator").forEach((el) => el.remove());
-});

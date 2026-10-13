@@ -75,6 +75,31 @@
         <p class="empty" id="empty" hidden>这一天还没有待办。</p>
       </section>
 
+      <section class="side-block" aria-label="金点子">
+        <button type="button" class="side-toggle" data-action="toggle-ideas" aria-expanded="false">
+          <span>金点子</span>
+          <span class="side-count" id="ideas-count" hidden></span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" /></svg>
+        </button>
+        <div class="side-body" id="ideas-body" hidden>
+          <form class="idea-form" id="idea-form">
+            <input id="idea-input" type="text" maxlength="120" placeholder="记一个点子，回车确认" autocomplete="off" />
+            <button type="submit">记下</button>
+          </form>
+          <ul class="idea-list" id="idea-list"></ul>
+        </div>
+      </section>
+
+      <section class="side-block" aria-label="笔记本">
+        <button type="button" class="side-toggle" data-action="toggle-notebook" aria-expanded="false">
+          <span>笔记本</span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" /></svg>
+        </button>
+        <div class="side-body" id="notebook-body" hidden>
+          <textarea id="notebook" rows="4" maxlength="20000" placeholder="随手记，自动保存"></textarea>
+        </div>
+      </section>
+
       <footer class="colophon">
         <span id="count-line"></span>
       </footer>

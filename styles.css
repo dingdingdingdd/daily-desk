@@ -458,23 +458,8 @@ button { cursor: pointer; border: none; background: none; padding: 0; }
   margin: 0 -8px;
   border-radius: 8px;
   transition: background 0.1s;
-  cursor: grab;
 }
-.task:active { cursor: grabbing; }
 .task:hover { background: var(--line-soft); }
-.task.dragging {
-  opacity: 0.4;
-  background: var(--accent-soft);
-}
-
-.drop-indicator {
-  display: block;
-  height: 2px;
-  background: var(--accent);
-  border-radius: 2px;
-  margin: 2px 8px;
-  pointer-events: none;
-}
 
 .task-main {
   min-width: 0;
@@ -663,6 +648,128 @@ button { cursor: pointer; border: none; background: none; padding: 0; }
   color: var(--faint);
   font-size: 12px;
   text-align: center;
+}
+
+/* ── 金点子 / 笔记本 ── */
+.side-block {
+  margin-top: 28px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.side-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 8px 6px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.side-toggle:hover { background: var(--line-soft); }
+.side-toggle svg {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  fill: none;
+  stroke: var(--faint);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.2s;
+}
+.side-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+.side-count {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--faint);
+  background: var(--line-soft);
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+
+.side-body { margin-top: 10px; }
+
+.idea-form {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--sheet);
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.idea-form:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
+}
+.idea-form input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0 12px;
+  height: 38px;
+  outline: none;
+  font-size: 14px;
+}
+.idea-form input::placeholder { color: #cbd5e1; }
+.idea-form button {
+  height: 38px;
+  padding: 0 14px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+.idea-form button:hover { background: #1e293b; }
+
+.idea-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+.idea {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px;
+  border-radius: 8px;
+  transition: background 0.1s;
+}
+.idea:hover { background: var(--line-soft); }
+.idea-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.idea:hover .ghost { color: var(--faint); }
+
+#notebook {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fafbfc;
+  padding: 12px 14px;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.6;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+#notebook::placeholder { color: #cbd5e1; }
+#notebook:focus {
+  border-color: var(--accent);
+  background: var(--sheet);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
 }
 
 /* ── 焦点态 ── */
