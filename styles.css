@@ -333,7 +333,7 @@ textarea:focus {
 }
 
 .due-field.has-value #due-display {
-  color: var(--accent);
+  color: var(--ink-2);
   font-weight: 500;
 }
 
