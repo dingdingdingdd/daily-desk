@@ -292,17 +292,23 @@ textarea:focus {
 }
 .composer #draft::placeholder { color: #cbd5e1; }
 
-/* 美化日期选择器 */
+/* 美化日期选择器：整个区域可点 */
 .due-field {
   display: flex;
   align-items: center;
   gap: 6px;
   height: 44px;
-  padding: 0 12px;
+  padding: 0 14px;
   border-left: 1px solid var(--line-soft);
   color: var(--faint);
   font-size: 12.5px;
   white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.due-field:hover {
+  background: var(--line-soft);
 }
 
 .due-field input[type="date"] {
@@ -314,18 +320,12 @@ textarea:focus {
   color-scheme: light;
   outline: none;
   font-family: inherit;
-}
-
-/* 隐藏原生日历图标，用自定义的 */
-.due-field input[type="date"]::-webkit-calendar-picker-indicator {
-  opacity: 0.5;
   cursor: pointer;
-  width: 14px;
-  height: 14px;
 }
 
-.due-field input[type="date"]:hover::-webkit-calendar-picker-indicator {
-  opacity: 0.8;
+/* 隐藏原生日历小图标，整个区域都是热区 */
+.due-field input[type="date"]::-webkit-calendar-picker-indicator {
+  display: none;
 }
 
 .composer button[type="submit"] {

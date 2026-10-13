@@ -31,6 +31,7 @@ const els = {
   composer: document.querySelector("#composer"),
   draft: document.querySelector("#draft"),
   due: document.querySelector("#due"),
+  dueField: document.querySelector(".due-field"),
   stats: document.querySelector("#stats"),
   carry: document.querySelector("#carry"),
   openList: document.querySelector("#open-list"),
@@ -45,6 +46,7 @@ const els = {
 document.body.addEventListener("click", onClick);
 els.composer.addEventListener("submit", onSubmit);
 els.intent.addEventListener("input", onIntent);
+els.dueField.addEventListener("click", () => els.due.showPicker?.());
 
 render();
 
