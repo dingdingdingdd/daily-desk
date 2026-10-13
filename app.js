@@ -540,7 +540,7 @@ function closeCalendar() {
 function updateDueDisplay() {
   const value = els.due.value;
   if (!value) {
-    els.dueDisplay.textContent = "不限";
+    els.dueDisplay.textContent = "+";
     els.dueField.classList.remove("has-value");
     return;
   }
