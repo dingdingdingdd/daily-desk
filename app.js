@@ -8,6 +8,7 @@ const KINDS = [
   { id: "work", label: "工作" },
   { id: "life", label: "生活" },
   { id: "growth", label: "成长" },
+  { id: "other", label: "其他" },
 ];
 const WEEKDAYS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
 const WEEK_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -16,8 +17,8 @@ const state = load();
 let selected = startOfDay(new Date());
 let doneOpen = false;
 let editingId = null;
-let kind = "work";
 let filter = "all";
+let lastKind = "work"; // "全部" 视图下新加待办的默认类型，跟随最近一次选过的具体类型
 
 const els = {
   kicker: document.querySelector("#date-kicker"),
@@ -245,11 +246,6 @@ function renderCarry(today, openToday) {
 }
 
 function renderChoices() {
-  document.querySelectorAll("[data-action='set-kind']").forEach((button) => {
-    const on = button.dataset.kind === kind;
-    button.classList.toggle("is-on", on);
-    button.setAttribute("aria-checked", on ? "true" : "false");
-  });
   document.querySelectorAll("[data-action='filter']").forEach((button) => {
     button.setAttribute("aria-selected", button.dataset.kind === filter ? "true" : "false");
   });
@@ -312,12 +308,9 @@ function onClick(event) {
   if (action === "toggle") toggleTask(button.dataset.id);
   if (action === "delete") deleteTask(button.dataset.id);
   if (action === "edit") beginEdit(button.dataset.id);
-  if (action === "set-kind") {
-    kind = button.dataset.kind;
-    renderChoices();
-  }
   if (action === "filter") {
     filter = button.dataset.kind;
+    if (filter !== "all") lastKind = filter; // 切到具体类型时，记录为默认新建类型
     render();
   }
   if (action === "cycle-kind") cycleKind(button.dataset.id);
@@ -334,12 +327,13 @@ function onSubmit(event) {
   if (!title) return;
   const start = keyOf(selected);
   const due = els.due.value && els.due.value >= start ? els.due.value : "";
+  const newKind = filter !== "all" ? filter : lastKind;
   const task = {
     id: crypto.randomUUID(),
     title,
     done: false,
     createdAt: Date.now(),
-    kind,
+    kind: newKind,
   };
   if (due) {
     state.spans.unshift({ ...task, start, due });

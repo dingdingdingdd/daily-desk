@@ -45,20 +45,16 @@
       <section class="todos" aria-label="待办">
         <div class="todos-head">
           <h2>待办</h2>
+          <div class="filters" id="filters" role="tablist" aria-label="按类型查看">
+            <button type="button" data-action="filter" data-kind="all" aria-selected="true">全部</button>
+            <button type="button" data-action="filter" data-kind="work" aria-selected="false">工作</button>
+            <button type="button" data-action="filter" data-kind="life" aria-selected="false">生活</button>
+            <button type="button" data-action="filter" data-kind="growth" aria-selected="false">成长</button>
+            <button type="button" data-action="filter" data-kind="other" aria-selected="false">其他</button>
+          </div>
           <p class="stats" id="stats"></p>
         </div>
-        <div class="filters" id="filters" role="tablist" aria-label="按类型查看">
-          <button type="button" data-action="filter" data-kind="all" aria-selected="true">全部</button>
-          <button type="button" data-action="filter" data-kind="work" aria-selected="false">工作</button>
-          <button type="button" data-action="filter" data-kind="life" aria-selected="false">生活</button>
-          <button type="button" data-action="filter" data-kind="growth" aria-selected="false">成长</button>
-        </div>
 
-        <div class="kind-switch" role="radiogroup" aria-label="待办类型">
-          <button type="button" class="kind-btn is-on" data-action="set-kind" data-kind="work" aria-checked="true">工作</button>
-          <button type="button" class="kind-btn" data-action="set-kind" data-kind="life" aria-checked="false">生活</button>
-          <button type="button" class="kind-btn" data-action="set-kind" data-kind="growth" aria-checked="false">成长</button>
-        </div>
         <form class="composer" id="composer">
           <input id="draft" type="text" maxlength="120" placeholder="添加待办，回车确认" autocomplete="off" />
           <label class="due-field">
