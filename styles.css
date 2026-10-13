@@ -219,12 +219,14 @@ textarea:focus {
   align-items: center;
   gap: 16px;
   margin-bottom: 14px;
+  height: 32px;
 }
 
 .todos-head h2 {
   margin: 0;
   font-size: 16px;
   font-weight: 700;
+  line-height: 32px;
   flex: none;
 }
 
@@ -232,6 +234,7 @@ textarea:focus {
   margin: 0 0 0 auto;
   color: var(--faint);
   font-size: 13px;
+  line-height: 32px;
   flex: none;
 }
 
