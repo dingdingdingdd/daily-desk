@@ -181,7 +181,7 @@ function render() {
   const today = startOfDay(new Date());
   const all = visibleTasks(selected);
   const tasks = all.filter((task) => filter === "all" || kindOf(task) === filter);
-  const open = tasks.filter((task) => !task.done);
+  const open = currentOpenTasks();
   const done = tasks.filter((task) => task.done);
   const openAll = all.filter((task) => !task.done);
 
@@ -195,8 +195,9 @@ function render() {
   renderWeek(today);
   renderIntent();
   renderCarry(today, openAll);
-  els.openList.innerHTML = open.map(renderTask).join("");
-  els.doneList.innerHTML = done.map(renderTask).join("");
+  const flags = moveFlags(open);
+  els.openList.innerHTML = open.map((task) => renderTask(task, flags.get(task.id))).join("");
+  els.doneList.innerHTML = done.map((task) => renderTask(task)).join("");
   els.doneWrap.hidden = done.length === 0;
   els.doneLabel.textContent = `已完成 ${done.length}`;
   els.doneToggle.setAttribute("aria-expanded", doneOpen ? "true" : "false");
@@ -269,7 +270,51 @@ function compareOpen(a, b) {
   return (b.createdAt || 0) - (a.createdAt || 0);
 }
 
-function renderTask(task) {
+/* ── 上移 / 下移按钮 ── */
+
+// 当前筛选下可见的未完成待办（与 render 中 open 同口径）
+function currentOpenTasks() {
+  const all = visibleTasks(selected);
+  const tasks = all.filter((task) => filter === "all" || kindOf(task) === filter);
+  return tasks.filter((task) => !task.done);
+}
+
+// 判断每条未完成待办能否上移/下移：
+// 只与可见列表中相邻、且同属一个存储列表（跨天任务组 / 当日任务组）的项交换，
+// 与拖拽的“只允许同列表内移动”规则保持一致，避免破坏跨天任务的语义。
+function moveFlags(open) {
+  const slots = new Map(open.map((task) => [task.id, findTaskArray(task.id)]));
+  const flags = new Map();
+  open.forEach((task, i) => {
+    const arr = slots.get(task.id)?.arr;
+    const prev = open[i - 1];
+    const next = open[i + 1];
+    flags.set(task.id, {
+      up: !!arr && !!prev && slots.get(prev.id)?.arr === arr,
+      down: !!arr && !!next && slots.get(next.id)?.arr === arr,
+    });
+  });
+  return flags;
+}
+
+// 与相邻可见项交换存储位置，dir 为 -1（上移）或 1（下移）
+function moveAdjacent(taskId, dir) {
+  const open = currentOpenTasks();
+  const i = open.findIndex((task) => task.id === taskId);
+  if (i < 0) return;
+  const peer = open[i + dir];
+  if (!peer) return;
+  const a = findTaskArray(taskId);
+  const b = findTaskArray(peer.id);
+  if (!a || !b || a.arr !== b.arr) return;
+  const targetIdx = a.arr.findIndex((task) => task.id === peer.id);
+  const [moved] = a.arr.splice(a.idx, 1);
+  a.arr.splice(targetIdx, 0, moved);
+  save();
+  render();
+}
+
+function renderTask(task, flags) {
   const title = editingId === task.id
     ? `<input class="title-edit" data-id="${task.id}" value="${escapeHtml(task.title)}" maxlength="120" />`
     : `<button type="button" class="title-btn" data-action="edit" data-id="${task.id}">${escapeHtml(task.title)}</button>`;
@@ -278,6 +323,17 @@ function renderTask(task) {
     ? `<span class="due-meta ${meta.kind}">${escapeHtml(meta.text)}</span>`
     : "";
   const taskKind = kindOf(task);
+  // 只有未完成列表渲染上移/下移按钮；flags 为 undefined（已完成列表）时不渲染
+  const move = flags
+    ? `<span class="move-group" role="group" aria-label="调整顺序">
+        <button type="button" class="move-btn" data-action="move-up" data-id="${task.id}" aria-label="上移" ${flags.up ? "" : "disabled"}>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10 8 6l4 4" /></svg>
+        </button>
+        <button type="button" class="move-btn" data-action="move-down" data-id="${task.id}" aria-label="下移" ${flags.down ? "" : "disabled"}>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6 8 10l4-4" /></svg>
+        </button>
+      </span>`
+    : "";
   return `<li class="task${task.done ? " is-done" : ""}" draggable="true" data-task-id="${task.id}">
     <button type="button" class="check" data-action="toggle" data-id="${task.id}" aria-label="${task.done ? "标为未完成" : "标为完成"}" aria-pressed="${task.done}">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.2 6.3 11.5 13 4.5" /></svg>
@@ -287,6 +343,7 @@ function renderTask(task) {
       ${title}
     </div>
     ${due}
+    ${move}
     <button type="button" class="ghost" data-action="delete" data-id="${task.id}">删除</button>
   </li>`;
 }
@@ -311,6 +368,8 @@ function onClick(event) {
     render();
   }
   if (action === "cycle-kind") cycleKind(button.dataset.id);
+  if (action === "move-up") moveAdjacent(button.dataset.id, -1);
+  if (action === "move-down") moveAdjacent(button.dataset.id, 1);
   if (action === "toggle-done") {
     doneOpen = !doneOpen;
     render();
