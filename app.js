@@ -19,6 +19,7 @@ let doneOpen = false;
 let editingId = null;
 let filter = "all";
 let lastKind = "work"; // "全部" 视图下新加待办的默认类型，跟随最近一次选过的具体类型
+let calDate = new Date(); // 日历弹窗当前显示的月份
 
 const els = {
   kicker: document.querySelector("#date-kicker"),
@@ -31,7 +32,11 @@ const els = {
   composer: document.querySelector("#composer"),
   draft: document.querySelector("#draft"),
   due: document.querySelector("#due"),
-  dueField: document.querySelector(".due-field"),
+  dueDisplay: document.querySelector("#due-display"),
+  dueField: document.querySelector("#due-field"),
+  calPop: document.querySelector("#calendar-pop"),
+  calTitle: document.querySelector("#cal-title"),
+  calGrid: document.querySelector("#cal-grid"),
   stats: document.querySelector("#stats"),
   carry: document.querySelector("#carry"),
   openList: document.querySelector("#open-list"),
@@ -46,7 +51,7 @@ const els = {
 document.body.addEventListener("click", onClick);
 els.composer.addEventListener("submit", onSubmit);
 els.intent.addEventListener("input", onIntent);
-els.dueField.addEventListener("click", () => els.due.showPicker?.());
+els.dueField.addEventListener("click", toggleCalendar);
 
 render();
 
@@ -204,6 +209,7 @@ function render() {
   els.countLine.textContent = "待办只保存在这台浏览器";
   els.due.min = keyOf(selected);
   if (els.due.value && els.due.value < els.due.min) els.due.value = "";
+  updateDueDisplay();
 
   const editing = document.querySelector(".title-edit");
   if (editing) {
@@ -466,4 +472,112 @@ document.addEventListener("keydown", (event) => {
   if (typing) return;
   if (event.key === "ArrowLeft") selectDate(addDays(selected, -1));
   if (event.key === "ArrowRight") selectDate(addDays(selected, 1));
+});
+
+/* ── 自定义日历弹窗 ── */
+function toggleCalendar() {
+  const pop = els.calPop;
+  if (pop.hidden) {
+    // 打开日历：定位到当前 due 日期或选中日期所在月
+    const current = els.due.value ? parseKey(els.due.value) : selected;
+    calDate = new Date(current.getFullYear(), current.getMonth(), 1);
+    renderCalendar();
+    positionCalendar();
+    pop.hidden = false;
+  } else {
+    pop.hidden = true;
+  }
+}
+
+function positionCalendar() {
+  const rect = els.dueField.getBoundingClientRect();
+  const pop = els.calPop;
+  pop.style.top = `${rect.bottom + 8}px`;
+  pop.style.right = `${window.innerWidth - rect.right}px`;
+}
+
+function renderCalendar() {
+  const year = calDate.getFullYear();
+  const month = calDate.getMonth();
+  els.calTitle.textContent = `${year}年${month + 1}月`;
+
+  const firstDay = new Date(year, month, 1);
+  // 周一作为一周的开始
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const today = startOfDay(new Date());
+  const selectedKey = els.due.value;
+
+  let html = "";
+  // 上月补位
+  for (let i = startOffset - 1; i >= 0; i--) {
+    html += `<span class="cal-day other-month">${daysInPrevMonth - i}</span>`;
+  }
+  // 当月
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateKey = keyOf(new Date(year, month, d));
+    const isToday = dateKey === keyOf(today);
+    const isSelected = dateKey === selectedKey;
+    const cls = ["cal-day", isToday ? "today" : "", isSelected ? "selected" : ""].filter(Boolean).join(" ");
+    html += `<span class="${cls}" data-date="${dateKey}">${d}</span>`;
+  }
+  // 下月补位，填满 42 格（6行）
+  const totalCells = startOffset + daysInMonth;
+  const remainder = (7 - (totalCells % 7)) % 7;
+  for (let d = 1; d <= remainder; d++) {
+    html += `<span class="cal-day other-month">${d}</span>`;
+  }
+
+  els.calGrid.innerHTML = html;
+}
+
+function closeCalendar() {
+  els.calPop.hidden = true;
+}
+
+function updateDueDisplay() {
+  const value = els.due.value;
+  if (!value) {
+    els.dueDisplay.textContent = "不限";
+    els.dueField.classList.remove("has-value");
+    return;
+  }
+  const date = parseKey(value);
+  els.dueDisplay.textContent = `${date.getMonth() + 1}月${date.getDate()}日`;
+  els.dueField.classList.add("has-value");
+}
+
+// 日历弹窗内的点击事件
+els.calPop.addEventListener("click", (event) => {
+  const nav = event.target.closest("[data-cal-action]");
+  const day = event.target.closest(".cal-day[data-date]");
+
+  if (nav) {
+    const action = nav.dataset.calAction;
+    if (action === "prev") calDate = new Date(calDate.getFullYear(), calDate.getMonth() - 1, 1);
+    if (action === "next") calDate = new Date(calDate.getFullYear(), calDate.getMonth() + 1, 1);
+    if (action === "clear") { els.due.value = ""; updateDueDisplay(); closeCalendar(); return; }
+    if (action === "today") { els.due.value = keyOf(new Date()); updateDueDisplay(); closeCalendar(); return; }
+    renderCalendar();
+    return;
+  }
+
+  if (day) {
+    els.due.value = day.dataset.date;
+    updateDueDisplay();
+    closeCalendar();
+    return;
+  }
+
+  // 点弹窗内部空白处不关闭
+  event.stopPropagation();
+});
+
+// 点击外部关闭日历
+document.addEventListener("click", (event) => {
+  if (!els.calPop.hidden && !event.target.closest("#calendar-pop") && !event.target.closest("#due-field")) {
+    closeCalendar();
+  }
 });

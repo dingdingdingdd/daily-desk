@@ -311,22 +311,116 @@ textarea:focus {
   background: var(--line-soft);
 }
 
-.due-field input[type="date"] {
-  width: 110px;
-  border: none;
-  background: transparent;
+#due-display {
   color: var(--ink-2);
   font-size: 13px;
-  color-scheme: light;
-  outline: none;
-  font-family: inherit;
-  cursor: pointer;
+  min-width: 60px;
 }
 
-/* 隐藏原生日历小图标，整个区域都是热区 */
-.due-field input[type="date"]::-webkit-calendar-picker-indicator {
-  display: none;
+.due-field.has-value #due-display {
+  color: var(--accent);
+  font-weight: 500;
 }
+
+/* ── 自定义日历弹窗 ── */
+.calendar-pop {
+  position: fixed;
+  z-index: 100;
+  width: 280px;
+  background: var(--sheet);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.12);
+  padding: 14px;
+  user-select: none;
+}
+
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.cal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.cal-nav {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s;
+}
+.cal-nav:hover { background: var(--line-soft); }
+.cal-nav svg {
+  width: 14px; height: 14px;
+  fill: none; stroke: var(--muted);
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+.cal-weekdays span {
+  text-align: center;
+  font-size: 11px;
+  color: var(--faint);
+  padding: 4px 0;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.cal-day {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: var(--ink-2);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.cal-day:hover { background: var(--line-soft); }
+.cal-day.other-month { color: #cbd5e1; }
+.cal-day.today {
+  color: var(--accent);
+  font-weight: 600;
+}
+.cal-day.selected {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.cal-day.selected:hover { background: #2563eb; }
+
+.cal-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.cal-clear, .cal-today {
+  font-size: 12.5px;
+  color: var(--muted);
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+.cal-clear:hover { color: var(--over); background: rgba(239,68,68,0.06); }
+.cal-today:hover { color: var(--accent); background: var(--accent-soft); }
 
 .composer button[type="submit"] {
   height: 44px;

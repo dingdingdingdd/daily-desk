@@ -57,9 +57,10 @@
 
         <form class="composer" id="composer">
           <input id="draft" type="text" maxlength="120" placeholder="添加待办，回车确认" autocomplete="off" />
-          <label class="due-field">
+          <label class="due-field" id="due-field">
             截止
-            <input id="due" type="date" aria-label="截止日期，留空则只出现在这一天" />
+            <span id="due-display">不限</span>
+            <input id="due" type="hidden" />
           </label>
           <button type="submit">添加</button>
         </form>
@@ -80,6 +81,28 @@
         <span id="count-line"></span>
       </footer>
     </div>
+
+    <!-- 自定义日历弹窗 -->
+    <div class="calendar-pop" id="calendar-pop" hidden>
+      <div class="cal-header">
+        <button type="button" class="cal-nav" data-cal-action="prev" aria-label="上个月">
+          <svg viewBox="0 0 20 20"><path d="M12.5 4.5 7 10l5.5 5.5" /></svg>
+        </button>
+        <span class="cal-title" id="cal-title"></span>
+        <button type="button" class="cal-nav" data-cal-action="next" aria-label="下个月">
+          <svg viewBox="0 0 20 20"><path d="M7.5 4.5 13 10l-5.5 5.5" /></svg>
+        </button>
+      </div>
+      <div class="cal-weekdays">
+        <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div class="cal-footer">
+        <button type="button" class="cal-clear" data-cal-action="clear">清除</button>
+        <button type="button" class="cal-today" data-cal-action="today">今天</button>
+      </div>
+    </div>
+
     <script src="./app.js"></script>
   </body>
 </html>
