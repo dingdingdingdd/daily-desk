@@ -317,6 +317,21 @@ textarea:focus {
   min-width: 60px;
 }
 
+.due-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--faint);
+  transition: color 0.15s;
+}
+
+.due-field:hover .due-icon {
+  color: var(--muted);
+}
+
+.due-field.has-value .due-icon {
+  display: none;
+}
+
 .due-field.has-value #due-display {
   color: var(--accent);
   font-weight: 500;

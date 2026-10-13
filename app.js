@@ -540,12 +540,13 @@ function closeCalendar() {
 function updateDueDisplay() {
   const value = els.due.value;
   if (!value) {
-    els.dueDisplay.textContent = "+";
+    els.dueDisplay.hidden = true;
     els.dueField.classList.remove("has-value");
     return;
   }
   const date = parseKey(value);
   els.dueDisplay.textContent = `${date.getMonth() + 1}月${date.getDate()}日`;
+  els.dueDisplay.hidden = false;
   els.dueField.classList.add("has-value");
 }
 
