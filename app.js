@@ -398,6 +398,7 @@ function onClick(event) {
   }
   if (action === "toggle-ideas") {
     state.ui.ideasOpen = !state.ui.ideasOpen;
+    if (!state.ui.ideasOpen) state.ui.editingIdea = null; // 折叠时退出编辑态
     save();
     render();
   }
@@ -407,6 +408,7 @@ function onClick(event) {
     render();
   }
   if (action === "delete-idea") deleteIdea(button.dataset.id);
+  if (action === "edit-idea") beginEditIdea(button.dataset.id);
   if (action === "carry") carryYesterday();
 }
 
@@ -715,7 +717,7 @@ document.addEventListener("click", (event) => {
   }
 });
 
-/* ── 金点子 ── */
+/* ── 灵感一刻 ── */
 function renderSideSections() {
   const ui = state.ui;
   els.ideasCount.hidden = state.ideas.length === 0;
@@ -732,8 +734,13 @@ function renderSideSections() {
 }
 
 function renderIdea(idea) {
+  if (state.ui.editingIdea === idea.id) {
+    return `<li class="idea">
+      <input class="idea-edit" data-id="${idea.id}" value="${escapeHtml(idea.text)}" maxlength="120" autocomplete="off" aria-label="编辑灵感" />
+    </li>`;
+  }
   return `<li class="idea">
-    <span class="idea-text">${escapeHtml(idea.text)}</span>
+    <button type="button" class="idea-title" data-action="edit-idea" data-id="${idea.id}">${escapeHtml(idea.text)}</button>
     <button type="button" class="ghost" data-action="delete-idea" data-id="${idea.id}">删除</button>
   </li>`;
 }
@@ -751,9 +758,72 @@ function onIdea(event) {
 
 function deleteIdea(id) {
   state.ideas = state.ideas.filter((idea) => idea.id !== id);
+  if (state.ui.editingIdea === id) state.ui.editingIdea = null;
   save();
   render();
 }
+
+let ideaEditCancelled = false;
+
+function beginEditIdea(id) {
+  ideaEditCancelled = false;
+  state.ui.editingIdea = id;
+  save();
+  render();
+  const input = els.ideaList.querySelector(`.idea-edit[data-id="${id}"]`);
+  if (input) {
+    input.focus();
+    input.select();
+  }
+}
+
+function commitIdeaEdit(id) {
+  const input = els.ideaList.querySelector(`.idea-edit[data-id="${id}"]`);
+  if (!input) {
+    // 输入框已被移除（如渲染中断）：只退出编辑态，不删除条目
+    state.ui.editingIdea = null;
+    ideaEditCancelled = false;
+    save();
+    render();
+    return;
+  }
+  const text = input.value.trim();
+  if (!text) {
+    state.ideas = state.ideas.filter((idea) => idea.id !== id);
+  } else {
+    const idea = state.ideas.find((idea) => idea.id === id);
+    if (idea) idea.text = text;
+  }
+  state.ui.editingIdea = null;
+  ideaEditCancelled = false;
+  save();
+  render();
+}
+
+// 行内编辑：回车保存、Esc 取消、失焦保存
+els.ideaList.addEventListener("keydown", (event) => {
+  if (!event.target.classList.contains("idea-edit")) return;
+  if (event.key === "Enter") {
+    event.preventDefault();
+    commitIdeaEdit(event.target.dataset.id);
+  } else if (event.key === "Escape") {
+    ideaEditCancelled = true;
+    state.ui.editingIdea = null;
+    save();
+    render();
+    setTimeout(() => { ideaEditCancelled = false; }, 0);
+  }
+});
+
+// 行内编辑：回车保存、Esc 取消、失焦（focusout 会冒泡）保存
+els.ideaList.addEventListener("focusout", (event) => {
+  if (!event.target.classList.contains("idea-edit")) return;
+  if (ideaEditCancelled) {
+    ideaEditCancelled = false;
+    return;
+  }
+  commitIdeaEdit(event.target.dataset.id);
+});
 
 /* ── 笔记本 ── */
 function onNotebook() {
