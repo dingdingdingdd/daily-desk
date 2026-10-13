@@ -182,7 +182,7 @@ function render() {
   const today = startOfDay(new Date());
   const all = visibleTasks(selected);
   const tasks = all.filter((task) => filter === "all" || kindOf(task) === filter);
-  const open = tasks.filter((task) => !task.done).sort(compareOpen);
+  const open = tasks.filter((task) => !task.done);
   const done = tasks.filter((task) => task.done);
   const openAll = all.filter((task) => !task.done);
 
@@ -289,7 +289,7 @@ function renderTask(task) {
     ? `<span class="due-meta ${meta.kind}">${escapeHtml(meta.text)}</span>`
     : "";
   const taskKind = kindOf(task);
-  return `<li class="task${task.done ? " is-done" : ""}">
+  return `<li class="task${task.done ? " is-done" : ""}" draggable="true" data-task-id="${task.id}">
     <button type="button" class="check" data-action="toggle" data-id="${task.id}" aria-label="${task.done ? "标为未完成" : "标为完成"}" aria-pressed="${task.done}">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.2 6.3 11.5 13 4.5" /></svg>
     </button>
@@ -581,4 +581,69 @@ document.addEventListener("click", (event) => {
   if (!els.calPop.hidden && !event.target.closest("#calendar-pop") && !event.target.closest("#due-field")) {
     closeCalendar();
   }
+});
+
+/* ── 拖拽排序 ── */
+let dragId = null;
+
+function findTaskArray(taskId) {
+  const spanIdx = state.spans.findIndex((t) => t.id === taskId);
+  if (spanIdx >= 0) return { arr: state.spans, idx: spanIdx };
+  for (const key of Object.keys(state.days)) {
+    if (!Array.isArray(state.days[key])) continue;
+    const idx = state.days[key].findIndex((t) => t.id === taskId);
+    if (idx >= 0) return { arr: state.days[key], idx };
+  }
+  return null;
+}
+
+function moveTask(taskId, targetTaskId, position) {
+  const source = findTaskArray(taskId);
+  const target = findTaskArray(targetTaskId);
+  if (!source || !target || source.arr !== target.arr) return; // 只允许同列表内拖动
+
+  const [moved] = source.arr.splice(source.idx, 1);
+  let insertIdx = target.arr.findIndex((t) => t.id === targetTaskId);
+  if (position === "after") insertIdx += 1;
+  // 删除原位置后索引可能偏移，重新算
+  if (source.idx < insertIdx) insertIdx -= 1;
+  target.arr.splice(insertIdx, 0, moved);
+  save();
+  render();
+}
+
+els.openList.addEventListener("dragstart", (event) => {
+  const li = event.target.closest("li.task");
+  if (!li) return;
+  dragId = li.dataset.taskId;
+  li.classList.add("dragging");
+  event.dataTransfer.effectAllowed = "move";
+});
+
+els.openList.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  const li = event.target.closest("li.task");
+  if (!li || li.dataset.taskId === dragId) return;
+  const rect = li.getBoundingClientRect();
+  const before = event.clientY < rect.top + rect.height / 2;
+  // 移除旧的插入线
+  els.openList.querySelectorAll(".drop-indicator").forEach((el) => el.remove());
+  const indicator = document.createElement("span");
+  indicator.className = "drop-indicator";
+  if (before) li.before(indicator);
+  else li.after(indicator);
+});
+
+els.openList.addEventListener("drop", (event) => {
+  event.preventDefault();
+  const li = event.target.closest("li.task");
+  if (!li || !dragId || li.dataset.taskId === dragId) return;
+  const rect = li.getBoundingClientRect();
+  const before = event.clientY < rect.top + rect.height / 2;
+  moveTask(dragId, li.dataset.taskId, before ? "before" : "after");
+});
+
+els.openList.addEventListener("dragend", () => {
+  dragId = null;
+  els.openList.querySelectorAll(".dragging, .drop-indicator").forEach((el) => el.remove());
 });

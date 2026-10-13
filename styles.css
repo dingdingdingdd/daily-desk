@@ -492,8 +492,23 @@ textarea:focus {
   margin: 0 -8px;
   border-radius: 8px;
   transition: background 0.1s;
+  cursor: grab;
 }
+.task:active { cursor: grabbing; }
 .task:hover { background: var(--line-soft); }
+.task.dragging {
+  opacity: 0.4;
+  background: var(--accent-soft);
+}
+
+.drop-indicator {
+  display: block;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  margin: 2px 8px;
+  pointer-events: none;
+}
 
 .task-main {
   min-width: 0;
