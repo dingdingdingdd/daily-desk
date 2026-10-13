@@ -20,6 +20,7 @@ let editingId = null;
 let filter = "all";
 let lastKind = "work"; // "全部" 视图下新加待办的默认类型，跟随最近一次选过的具体类型
 let calDate = new Date(); // 日历弹窗当前显示的月份
+let dueTargetId = null; // 正在编辑截止时间的待办 id；null 表示编辑输入框的截止
 
 const els = {
   kicker: document.querySelector("#date-kicker"),
@@ -27,8 +28,6 @@ const els = {
   sub: document.querySelector("#date-sub"),
   week: document.querySelector("#week"),
   today: document.querySelector(".today-link"),
-  intentLabel: document.querySelector("#intent-label"),
-  intent: document.querySelector("#intent"),
   composer: document.querySelector("#composer"),
   draft: document.querySelector("#draft"),
   due: document.querySelector("#due"),
@@ -49,7 +48,6 @@ const els = {
 
 document.body.addEventListener("click", onClick);
 els.composer.addEventListener("submit", onSubmit);
-els.intent.addEventListener("input", onIntent);
 els.dueField.addEventListener("click", toggleCalendar);
 
 render();
@@ -57,13 +55,12 @@ render();
 function load() {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!raw || typeof raw !== "object") return { days: {}, intents: {}, spans: [] };
+    if (!raw || typeof raw !== "object") return { days: {}, spans: [] };
     raw.days = raw.days && typeof raw.days === "object" ? raw.days : {};
-    raw.intents = raw.intents && typeof raw.intents === "object" ? raw.intents : {};
     raw.spans = Array.isArray(raw.spans) ? raw.spans : [];
     return raw;
   } catch {
-    return { days: {}, intents: {}, spans: [] };
+    return { days: {}, spans: [] };
   }
 }
 
@@ -150,14 +147,6 @@ function weekStart(date) {
   return addDays(date, -shifted);
 }
 
-function intentCopy(date, today) {
-  const diff = Math.round((date - today) / 86400000);
-  if (diff === 0) return "今日重点";
-  if (diff === -1) return "昨日重点";
-  if (diff === 1) return "明日重点";
-  return "当日重点";
-}
-
 function relativeLabel(date) {
   const today = startOfDay(new Date());
   const diff = Math.round((date - today) / 86400000);
@@ -189,11 +178,9 @@ function render() {
   els.num.textContent = `${selected.getFullYear()}年${selected.getMonth() + 1}月${selected.getDate()}日`;
   els.sub.textContent = WEEKDAYS[selected.getDay()];
   els.today.hidden = sameDay(selected, today);
-  els.intentLabel.textContent = intentCopy(selected, today);
   document.title = `${relativeLabel(selected)} ${selected.getMonth() + 1}月${selected.getDate()}日 · 案头`;
 
   renderWeek(today);
-  renderIntent();
   renderCarry(today, openAll);
   const flags = moveFlags(open);
   els.openList.innerHTML = open.map((task) => renderTask(task, flags.get(task.id))).join("");
@@ -228,14 +215,6 @@ function renderWeek(today) {
       <span>${label}</span>
     </button>`;
   }).join("");
-}
-
-function renderIntent() {
-  const key = keyOf(selected);
-  const value = state.intents[key] || "";
-  if (document.activeElement === els.intent) return;
-  els.intent.value = value;
-  autosizeIntent();
 }
 
 function renderCarry(today, openToday) {
@@ -320,8 +299,10 @@ function renderTask(task, flags) {
     : `<button type="button" class="title-btn" data-action="edit" data-id="${task.id}">${escapeHtml(task.title)}</button>`;
   const meta = dueMeta(task, selected);
   const due = meta
-    ? `<span class="due-meta ${meta.kind}">${escapeHtml(meta.text)}</span>`
-    : "";
+    ? `<button type="button" class="due-meta ${meta.kind}" data-action="edit-due" data-id="${task.id}" aria-label="修改截止时间" title="修改截止时间">${escapeHtml(meta.text)}</button>`
+    : `<button type="button" class="due-add" data-action="edit-due" data-id="${task.id}" aria-label="添加截止时间" title="添加截止时间">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 8h14M7 3v3M13 3v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>`;
   const taskKind = kindOf(task);
   // 只有未完成列表渲染上移/下移按钮；flags 为 undefined（已完成列表）时不渲染
   const move = flags
@@ -368,6 +349,7 @@ function onClick(event) {
     render();
   }
   if (action === "cycle-kind") cycleKind(button.dataset.id);
+  if (action === "edit-due") openDueEditor(button.dataset.id, button);
   if (action === "move-up") moveAdjacent(button.dataset.id, -1);
   if (action === "move-down") moveAdjacent(button.dataset.id, 1);
   if (action === "toggle-done") {
@@ -402,15 +384,6 @@ function onSubmit(event) {
   save();
   render();
   els.draft.focus();
-}
-
-function onIntent() {
-  const value = els.intent.value.trim();
-  const key = keyOf(selected);
-  if (value) state.intents[key] = els.intent.value.slice(0, 80);
-  else delete state.intents[key];
-  autosizeIntent();
-  save();
 }
 
 function selectDate(date) {
@@ -505,14 +478,44 @@ function cycleKind(id) {
   render();
 }
 
+// 给待办设置截止时间：原本没有截止的当天任务转为跨天任务（从当前查看的日期开始，每天出现直到完成）
+function applyDueToTask(taskId, key) {
+  const task = findTask(taskId);
+  if (!task) return;
+  const minKey = task.start || keyOf(selected);
+  if (key < minKey) return; // 截止不能早于任务的起始日
+  if (!task.due) {
+    for (const dayKey of Object.keys(state.days)) {
+      if (!Array.isArray(state.days[dayKey])) continue;
+      state.days[dayKey] = state.days[dayKey].filter((item) => item.id !== taskId);
+    }
+    task.start = keyOf(selected);
+    state.spans.unshift(task);
+  }
+  task.due = key;
+  save();
+  render();
+}
+
+// 清除待办的截止时间：跨天任务转为当天任务（放进当前查看的日期），当天任务直接去掉截止
+function clearTaskDue(taskId) {
+  const task = findTask(taskId);
+  if (!task) return;
+  if (task.start) {
+    state.spans = state.spans.filter((item) => item.id !== taskId);
+    delete task.start;
+    delete task.due;
+    tasksOf(selected).unshift(task);
+  } else {
+    delete task.due;
+  }
+  save();
+  render();
+}
+
 function parseKey(key) {
   const [year, month, day] = key.split("-").map(Number);
   return startOfDay(new Date(year, month - 1, day));
-}
-
-function autosizeIntent() {
-  els.intent.style.height = "auto";
-  els.intent.style.height = `${els.intent.scrollHeight}px`;
 }
 
 document.addEventListener("keydown", (event) => {
@@ -526,19 +529,32 @@ document.addEventListener("keydown", (event) => {
 function toggleCalendar() {
   const pop = els.calPop;
   if (pop.hidden) {
-    // 打开日历：定位到当前 due 日期或选中日期所在月
+    // 输入框模式：定位到当前 due 日期或选中日期所在月
+    dueTargetId = null;
     const current = els.due.value ? parseKey(els.due.value) : selected;
     calDate = new Date(current.getFullYear(), current.getMonth(), 1);
     renderCalendar();
-    positionCalendar();
+    positionCalendar(els.dueField);
     pop.hidden = false;
   } else {
-    pop.hidden = true;
+    closeCalendar();
   }
 }
 
-function positionCalendar() {
-  const rect = els.dueField.getBoundingClientRect();
+// 打开日历编辑某条待办的截止时间，锚定在点击的按钮上
+function openDueEditor(taskId, anchor) {
+  const task = findTask(taskId);
+  if (!task) return;
+  dueTargetId = taskId;
+  const base = task.due ? parseKey(task.due) : selected;
+  calDate = new Date(base.getFullYear(), base.getMonth(), 1);
+  renderCalendar();
+  positionCalendar(anchor);
+  els.calPop.hidden = false;
+}
+
+function positionCalendar(anchor) {
+  const rect = (anchor || els.dueField).getBoundingClientRect();
   const pop = els.calPop;
   pop.style.top = `${rect.bottom + 8}px`;
   pop.style.right = `${window.innerWidth - rect.right}px`;
@@ -556,7 +572,8 @@ function renderCalendar() {
   const daysInPrevMonth = new Date(year, month, 0).getDate();
 
   const today = startOfDay(new Date());
-  const selectedKey = els.due.value;
+  // 编辑待办时高亮该待办当前的截止日期；编辑输入框时高亮输入框里的日期
+  const selectedKey = dueTargetId ? (findTask(dueTargetId)?.due || "") : els.due.value;
 
   let html = "";
   // 上月补位
@@ -583,6 +600,7 @@ function renderCalendar() {
 
 function closeCalendar() {
   els.calPop.hidden = true;
+  dueTargetId = null;
 }
 
 function updateDueDisplay() {
@@ -607,15 +625,27 @@ els.calPop.addEventListener("click", (event) => {
     const action = nav.dataset.calAction;
     if (action === "prev") calDate = new Date(calDate.getFullYear(), calDate.getMonth() - 1, 1);
     if (action === "next") calDate = new Date(calDate.getFullYear(), calDate.getMonth() + 1, 1);
-    if (action === "clear") { els.due.value = ""; updateDueDisplay(); closeCalendar(); return; }
-    if (action === "today") { els.due.value = keyOf(new Date()); updateDueDisplay(); closeCalendar(); return; }
+    if (action === "clear") {
+      if (dueTargetId) clearTaskDue(dueTargetId);
+      else { els.due.value = ""; updateDueDisplay(); }
+      closeCalendar();
+      return;
+    }
+    if (action === "today") {
+      const todayKey = keyOf(new Date());
+      if (dueTargetId) applyDueToTask(dueTargetId, todayKey);
+      else { els.due.value = todayKey; updateDueDisplay(); }
+      closeCalendar();
+      return;
+    }
     renderCalendar();
     return;
   }
 
   if (day) {
-    els.due.value = day.dataset.date;
-    updateDueDisplay();
+    const dateKey = day.dataset.date;
+    if (dueTargetId) applyDueToTask(dueTargetId, dateKey);
+    else { els.due.value = dateKey; updateDueDisplay(); }
     closeCalendar();
     return;
   }
@@ -624,9 +654,9 @@ els.calPop.addEventListener("click", (event) => {
   event.stopPropagation();
 });
 
-// 点击外部关闭日历
+// 点击外部关闭日历（编辑待办截止的按钮除外，避免刚打开就被关闭）
 document.addEventListener("click", (event) => {
-  if (!els.calPop.hidden && !event.target.closest("#calendar-pop") && !event.target.closest("#due-field")) {
+  if (!els.calPop.hidden && !event.target.closest("#calendar-pop") && !event.target.closest("#due-field") && !event.target.closest("[data-action='edit-due']")) {
     closeCalendar();
   }
 });
