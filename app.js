@@ -8,7 +8,7 @@ const KINDS = [
   { id: "work", label: "工作" },
   { id: "life", label: "生活" },
   { id: "growth", label: "成长" },
-  { id: "other", label: "其他" },
+  { id: "other", label: "prompt记录" },
 ];
 const WEEKDAYS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
 const WEEK_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -249,13 +249,14 @@ function renderCarry(today, openToday) {
   const yesterday = tasksOf(addDays(today, -1)).filter((task) => !task.done);
   const titles = new Set(openToday.map((task) => task.title));
   const pending = yesterday.filter((task) => !titles.has(task.title));
-  if (!show || pending.length === 0) {
+  const dismissed = state.carryDismissDate === keyOf(today);
+  if (!show || pending.length === 0 || dismissed) {
     els.carry.hidden = true;
     els.carry.innerHTML = "";
     return;
   }
   els.carry.hidden = false;
-  els.carry.innerHTML = `<span>昨天还有 ${pending.length} 件事没做完</span><button type="button" data-action="carry">带入今天</button>`;
+  els.carry.innerHTML = `<span>昨天还有 ${pending.length} 件事没做完</span><span class="carry-actions"><button type="button" data-action="carry">带入今天</button><button type="button" class="carry-close" data-action="dismiss-carry" aria-label="关闭">×</button></span>`;
 }
 
 function renderChoices() {
@@ -410,6 +411,7 @@ function onClick(event) {
   if (action === "delete-idea") deleteIdea(button.dataset.id);
   if (action === "edit-idea") beginEditIdea(button.dataset.id);
   if (action === "carry") carryYesterday();
+  if (action === "dismiss-carry") dismissCarry();
 }
 
 function onSubmit(event) {
@@ -519,6 +521,12 @@ function carryYesterday() {
     task.order = nextBottomOrder(); // 带入的待办排在列表底部
     tasksOf(today).push(task);
   });
+  save();
+  render();
+}
+
+function dismissCarry() {
+  state.carryDismissDate = keyOf(startOfDay(new Date()));
   save();
   render();
 }
