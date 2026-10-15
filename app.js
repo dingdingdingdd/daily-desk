@@ -508,17 +508,16 @@ function commitEdit() {
 
 function carryYesterday() {
   const today = startOfDay(new Date());
+  const yesterday = addDays(today, -1);
   const titles = new Set(tasksOf(today).filter((task) => !task.done).map((task) => task.title));
-  const pending = tasksOf(addDays(today, -1)).filter((task) => !task.done && !titles.has(task.title));
+  const pending = tasksOf(yesterday).filter((task) => !task.done && !titles.has(task.title));
+  if (pending.length === 0) return;
+  // 移动而非复制：同一条任务（同 id）从昨天挪到今天，始终只有一条数据；
+  // 编辑、完成都落在它本身，不会再出现“昨天又有一件没带入”的重复提示。
+  state.days[keyOf(yesterday)] = tasksOf(yesterday).filter((task) => !pending.includes(task));
   pending.forEach((task) => {
-    tasksOf(today).push({
-      id: crypto.randomUUID(),
-      title: task.title,
-      done: false,
-      createdAt: Date.now(),
-      kind: kindOf(task),
-      order: nextBottomOrder(), // 带入的待办排在列表底部
-    });
+    task.order = nextBottomOrder(); // 带入的待办排在列表底部
+    tasksOf(today).push(task);
   });
   save();
   render();
