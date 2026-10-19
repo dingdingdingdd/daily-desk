@@ -207,7 +207,7 @@ function render() {
   document.title = `${relativeLabel(selected)} ${selected.getMonth() + 1}月${selected.getDate()}日 · 案头`;
 
   renderWeek(today);
-  renderCarry(today, openAll);
+  renderCarry(openAll);
   const flags = moveFlags(open);
   els.openList.innerHTML = open.map((task) => renderTask(task, flags.get(task.id))).join("");
   els.doneList.innerHTML = done.map((task) => renderTask(task)).join("");
@@ -244,19 +244,27 @@ function renderWeek(today) {
   }).join("");
 }
 
-function renderCarry(today, openToday) {
-  const show = sameDay(selected, today);
-  const yesterday = tasksOf(addDays(today, -1)).filter((task) => !task.done);
-  const titles = new Set(openToday.map((task) => task.title));
-  const pending = yesterday.filter((task) => !titles.has(task.title));
-  const dismissed = state.carryDismissDate === keyOf(today);
-  if (!show || pending.length === 0 || dismissed) {
+function renderCarry(openSelected) {
+  const today = startOfDay(new Date());
+  const selectedKey = keyOf(selected);
+  const titles = new Set(openSelected.map((task) => task.title));
+  // 收集所有早于选中日期的未完成任务（还没在选中日期出现过的），不限于前一天
+  let pending = 0;
+  for (const [dayKey, list] of Object.entries(state.days)) {
+    if (!Array.isArray(list) || dayKey >= selectedKey) continue;
+    for (const task of list) {
+      if (!task.done && !titles.has(task.title)) pending += 1;
+    }
+  }
+  // 常驻提示：之前的日期还有未完成任务且还没全部带入时显示；全部带入后 pending 为空，自动消失
+  if (pending === 0) {
     els.carry.hidden = true;
     els.carry.innerHTML = "";
     return;
   }
+  const targetLabel = sameDay(selected, today) ? "今天" : `${selected.getMonth() + 1}月${selected.getDate()}日`;
   els.carry.hidden = false;
-  els.carry.innerHTML = `<span>昨天还有 ${pending.length} 件事没做完</span><span class="carry-actions"><button type="button" data-action="carry">带入今天</button><button type="button" class="carry-close" data-action="dismiss-carry" aria-label="关闭">×</button></span>`;
+  els.carry.innerHTML = `<span>还有 ${pending} 件事没做完</span><button type="button" data-action="carry">带入${targetLabel}</button>`;
 }
 
 function renderChoices() {
@@ -410,8 +418,7 @@ function onClick(event) {
   }
   if (action === "delete-idea") deleteIdea(button.dataset.id);
   if (action === "edit-idea") beginEditIdea(button.dataset.id);
-  if (action === "carry") carryYesterday();
-  if (action === "dismiss-carry") dismissCarry();
+  if (action === "carry") carryPending();
 }
 
 function onSubmit(event) {
@@ -508,25 +515,24 @@ function commitEdit() {
   render();
 }
 
-function carryYesterday() {
-  const today = startOfDay(new Date());
-  const yesterday = addDays(today, -1);
-  const titles = new Set(tasksOf(today).filter((task) => !task.done).map((task) => task.title));
-  const pending = tasksOf(yesterday).filter((task) => !task.done && !titles.has(task.title));
+function carryPending() {
+  const selectedKey = keyOf(selected);
+  const titles = new Set(tasksOf(selected).filter((task) => !task.done).map((task) => task.title));
+  const pending = [];
+  for (const [dayKey, list] of Object.entries(state.days)) {
+    if (!Array.isArray(list) || dayKey >= selectedKey) continue;
+    for (const task of list) {
+      if (!task.done && !titles.has(task.title)) pending.push({ task, dayKey });
+    }
+  }
   if (pending.length === 0) return;
-  // 移动而非复制：同一条任务（同 id）从昨天挪到今天，始终只有一条数据；
-  // 编辑、完成都落在它本身，不会再出现“昨天又有一件没带入”的重复提示。
-  state.days[keyOf(yesterday)] = tasksOf(yesterday).filter((task) => !pending.includes(task));
-  pending.forEach((task) => {
+  // 移动而非复制：同一条任务（同 id）从原日期挪到选中日期，始终只有一条数据；
+  // 编辑、完成都落在它本身，不会再出现“又有一件没带入”的重复提示。
+  for (const { task, dayKey } of pending) {
+    state.days[dayKey] = state.days[dayKey].filter((item) => item !== task);
     task.order = nextBottomOrder(); // 带入的待办排在列表底部
-    tasksOf(today).push(task);
-  });
-  save();
-  render();
-}
-
-function dismissCarry() {
-  state.carryDismissDate = keyOf(startOfDay(new Date()));
+    tasksOf(selected).push(task);
+  }
   save();
   render();
 }
